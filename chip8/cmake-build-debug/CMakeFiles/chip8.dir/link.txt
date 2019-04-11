@@ -1,0 +1,1 @@
+/usr/bin/c++.exe -g  -Wl,--enable-auto-import CMakeFiles/chip8.dir/main.cpp.o CMakeFiles/chip8.dir/src/chip8.cpp.o  -o chip8.exe -Wl,--out-implib,libchip8.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
