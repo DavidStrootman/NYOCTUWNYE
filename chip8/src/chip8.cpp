@@ -1,83 +1,144 @@
 //
 // Created by David Strootman on 9-4-2019.
 //
+// Most of the comments in this file come from Cowgod's Chip-8 Technical reference
+//
 
 #include "chip8.h"
 
-chip8::chip8()
+chip8::chip8() : gfx(), V(), stack(), memory()
 {
-    pc = 0x200; // First 512 bytes are reserved for Chip8
+    pc = 0x200; // Program counter (First 512/0x200 bytes are reserved for Chip8)
     opcode = 0; // Current opcode
+
     I = 0; // Index Register
+    sp = 0; // Stack pointer
 }
 
 void chip8::initialize()
 {
-    // Clear display
-    // Clear stack
-    // Clear registers V0-VF
-    // Clear memory
+    // TODO: Clear display
+    // TODO: Clear stack
+    // TODO: Clear registers V0-VF
+    // TODO: Clear memory
 
-    // Load fontset
+    // TODO: Load fontset
     for (int i = 0; i < 80; ++i)
         memory[i] = chip8_fontset[i];
 
-    // Reset timers
+    // TODO: Reset timers
 }
 void chip8::emulateCycle()
 {
     opcode = memory[pc] << 8 | memory[pc + 1];
-    char compReg1 = 0x00;
-    char compReg2 = 0x00;
-    char compByte = 0x00;
+    char reg1 = 0x00;
+    char reg2 = 0x00;
+    char byte1 = 0x00;
 
     // Decode opcode
     switch (opcode & 0xF000) {
         case 0x0000:
             switch (opcode & 0x000F) {
-                case 0x0000: // Return from a subroutine.
+                case 0x0000:
+                    /*
+                     * 00E0 - CLS
+                     * Clear the display.
+                     */
+                    memset(gfx, 0, sizeof(gfx));
                     break;
-                case 0x000E: // CLS
+
+                case 0x000E:
+
+                    /*
+                     * 00EE - RET
+                     * Return from a subroutine.
+                     *
+                     * The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+                     */
+                    pc = stack[sp--] + 1;
                     break;
+
                 default:
                     std::cout << "Unknown opcode: " << opcode << "\n";
             }
             break;
-        case 0x1000: // JP addr
-            break;
-        case 0x2000: // CALL addr
-            break;
-        case 0x3000: // SE Vx, byte
-            // Shift first half of left byte to first half of right byte and nibble everything left of that half.
-            compReg1 = (opcode & 0x0F00) >> 8;
-            // nibble left byte
-            compByte = opcode & 0x00FF;
 
-            if (compReg1 == compByte) {
+        case 0x1000:
+            /*
+             * 1nnn - JP addr
+             * Jump to location nnn.
+             * The interpreter sets the program counter to nnn.
+             */
+            pc = NNN;
+            break;
+
+        case 0x2000:
+            /*
+             * 2nnn - CALL addr
+             * Call subroutine at nnn.
+             *
+             * The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
+             */
+            stack[sp] = pc;
+            ++sp;
+            pc = NNN;
+            break;
+
+        case 0x3000:
+            /*
+             * 3xkk - SE Vx, byte
+             * Skip next instruction if Vx = kk.
+             *
+             * The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
+             */
+            reg1 = (opcode & 0x0F00) >> 8;
+            byte1 = KK;
+
+            if (reg1 == byte1) {
                 pc += 2;
             }
+            pc += 2;
             break;
-        case 0x4000: // SNE Vx, byte
-            // Shift selected half of byte to right and nibble rest.
-            compReg1 = (opcode & 0x0F00) >> 8;
-            // nibble left byte
-            compByte = opcode & 0x00FF;
 
-            if (compReg1 != compByte) {
+        case 0x4000:
+            /*
+             * 4xkk - SNE Vx, byte
+             * Skip next instruction if Vx != kk.
+             *
+             * The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
+             */
+            reg1 = (opcode & 0x0F00) >> 8;
+            byte1 = opcode & 0x00FF;
+
+            if (reg1 != byte1) {
                 pc += 2;
             }
+            pc += 2;
             break;
-        case 0x5000: // SE Vx, Vy
-            // Nibble all but selected half of byte and shift to right.
-            compReg1 = (opcode & 0x0F00) >> 8;
-            compReg2 = (opcode & 0x00F0) >> 4;
 
-            if (compReg1 == compReg2) {
+        case 0x5000:
+            /*
+             * 5xy0 - SE Vx, Vy
+             * Skip next instruction if Vx = Vy.
+             *
+             * The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
+             */
+
+            if (X == Y) {
                 pc += 2;
             }
-
+            pc += 2;
             break;
-        case 0x6000: // LD Vx, byte
+
+        case 0x6000:
+            /*
+             * 6xkk - LD Vx, byte
+             * Set Vx = kk.
+             *
+             * The interpreter puts the value kk into register Vx.
+             */
+            reg1 = (opcode & 0x0F00) >> 2;
+            V[reg1] = opcode & 0x00FF;
             break;
         case 0x7000: // ADD Vx, byte
             break;
@@ -110,9 +171,9 @@ void chip8::emulateCycle()
             break;
         case 0xA000: // LD I, addr
             I = opcode & 0x0FFF;
-
             pc += 2;
             break;
+
         case 0xB000: // JP V0, addr
             break;
         case 0xC000: // RND Vx, byte

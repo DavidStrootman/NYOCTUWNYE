@@ -1,6 +1,6 @@
 
 // #include    OpenGL graphics and input
-#include "src/chip8.h" // Your cpu core implementation
+#include "chip8.h" // Your cpu core implementation
 #define ever ;;
 Chip8 myChip8;
 
