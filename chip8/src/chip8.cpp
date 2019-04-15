@@ -455,7 +455,7 @@ void chip8::emulateCycle()
                              * The values of I and Vx are added, and the results are stored in I.
                              */
                             I += V[X];
-9
+
                             pc += 2;
                             break;
 
