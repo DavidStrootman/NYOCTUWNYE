@@ -407,6 +407,7 @@ void chip8::emulateCycle()
                              * The value of DT is placed into Vx.
                              */
                             throw NotImplementedException();
+
                             break;
 
                         case 0x000A:
