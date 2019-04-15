@@ -472,6 +472,7 @@ void chip8::emulateCycle()
                      * the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
                      */
                     I = V[X];
+
                     pc += 2;
                     break;
 
