@@ -4,36 +4,36 @@
 // Most of the comments in this file come from Cowgod's Chip-8 Technical reference
 //
 
-#include "chip8.h"
+#include "include/chip8.h"
 
-chip8::chip8() : gfx(), V(), stack(), memory()
+chip8::chip8() : gfx(), V(), stack()
 {
     pc = 0x200; // Program counter (First 512/0x200 bytes are reserved for Chip8)
     opcode = 0; // Current opcode
 
     I = 0; // Index Register
     sp = 0; // Stack pointer
+
 }
 
 void chip8::initialize()
 {
-    // TODO: Clear display
-    // TODO: Clear stack
-    // TODO: Clear registers V0-VF
-    // TODO: Clear memory
+    memset(gfx, 0, sizeof(gfx));
+    memset(stack, 0, sizeof(stack));
+    memset(V, 0, sizeof(V));
+    memset(memory, 0, sizeof(memory));
 
-    // TODO: Load fontset
-    for (int i = 0; i < 80; ++i)
+    for (int i = 0; i < 80; ++i) {
         memory[i] = chip8_fontset[i];
+    }
 
-    // TODO: Reset timers
+    delay_timer = 0;
+    sound_timer = 0;
 }
 void chip8::emulateCycle()
 {
     opcode = memory[pc] << 8 | memory[pc + 1];
     char reg1 = 0x00;
-    char reg2 = 0x00;
-    char byte1 = 0x00;
 
     // Decode opcode
     switch (opcode & 0xF000) {
@@ -53,7 +53,8 @@ void chip8::emulateCycle()
                      * 00EE - RET
                      * Return from a subroutine.
                      *
-                     * The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+                     * The interpreter sets the program counter to the address at the top of the stack,
+                     * then subtracts 1 from the stack pointer.
                      */
                     pc = stack[sp--] + 1;
                     break;
@@ -77,7 +78,8 @@ void chip8::emulateCycle()
              * 2nnn - CALL addr
              * Call subroutine at nnn.
              *
-             * The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
+             * The interpreter increments the stack pointer, then puts the current PC on the top of the stack.
+             * The PC is then set to nnn.
              */
             stack[sp] = pc;
             ++sp;
@@ -91,10 +93,8 @@ void chip8::emulateCycle()
              *
              * The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
              */
-            reg1 = (opcode & 0x0F00) >> 8;
-            byte1 = KK;
 
-            if (reg1 == byte1) {
+            if (X == KK) {
                 pc += 2;
             }
             pc += 2;
@@ -107,10 +107,8 @@ void chip8::emulateCycle()
              *
              * The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
              */
-            reg1 = (opcode & 0x0F00) >> 8;
-            byte1 = opcode & 0x00FF;
 
-            if (reg1 != byte1) {
+            if (X != KK) {
                 pc += 2;
             }
             pc += 2;
@@ -121,7 +119,8 @@ void chip8::emulateCycle()
              * 5xy0 - SE Vx, Vy
              * Skip next instruction if Vx = Vy.
              *
-             * The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
+             * The interpreter compares register Vx to register Vy, and if they are equal,
+             * increments the program counter by 2.
              */
 
             if (X == Y) {
@@ -137,66 +136,288 @@ void chip8::emulateCycle()
              *
              * The interpreter puts the value kk into register Vx.
              */
-            reg1 = (opcode & 0x0F00) >> 2;
-            V[reg1] = opcode & 0x00FF;
+            V[X] = KK;
+
+            pc += 2;
             break;
-        case 0x7000: // ADD Vx, byte
+
+        case 0x7000:
+            /*
+             * 7xkk - ADD Vx, byte
+             * Set Vx = Vx + kk.
+             *
+             * Adds the value kk to the value of register Vx, then stores the result in Vx.
+             */
+            V[X] += KK;
+
+            pc += 2;
             break;
-        case 0x8000: // LD Vx, Vy
+
+        case 0x8000:
             switch (opcode & 0x000F) {
-                case 0x0000: // LD Vx, Vy
+                case 0x0000:
+                    /*
+                     * 8xy0 - LD Vx, Vy
+                     * Set Vx = Vy.
+                     *
+                     * Stores the value of register Vy in register Vx.
+                     */
+                    V[X] = V[Y];
+
+                    pc += 2;
                     break;
-                case 0x0001: // OR Vx, Vy
+
+                case 0x0001:
+                    /*
+                     * 8xy1 - OR Vx, Vy
+                     * Set Vx = Vx OR Vy.
+                     *
+                     * Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx.
+                     * A bitwise OR compares the corresponding bits from two values, and if either bit is 1,
+                     * then the same bit in the result is also 1. Otherwise, it is 0.
+                     */
+                    V[X] |= V[Y];
+
+                    pc += 2;
                     break;
-                case 0x0002: // AND Vx, Vy
+
+                case 0x0002:
+                    /*
+                     * 8xy2 - AND Vx, Vy
+                     * Set Vx = Vx AND Vy.
+                     *
+                     * Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx.
+                     * A bitwise AND compares the corresponding bits from two values, and if both bits are 1,
+                     * then the same bit in the result is also 1. Otherwise, it is 0.
+                     */
+                    V[X] &= V[Y];
+
+                    pc += 2;
                     break;
-                case 0x0003: // XOR Vx, Vy
+
+                case 0x0003:
+                    /*
+                     * 8xy3 - XOR Vx, Vy
+                     * Set Vx = Vx XOR Vy.
+                     *
+                     * Performs a bitwise exclusive OR on the values of Vx and Vy, then stores the result in Vx.
+                     * An exclusive OR compares the corresponding bits from two values,
+                     * and if the bits are not both the same, then the corresponding bit in the result is set to 1.
+                     * Otherwise, it is 0.
+                     */
+                    V[X] ^= V[Y];
+
+                    pc += 2;
                     break;
-                case 0x0004: // ADD Vx, Vy
+
+                case 0x0004:
+                    /*
+                     * 8xy4 - ADD Vx, Vy
+                     * Set Vx = Vx + Vy, set VF = carry.
+                     *
+                     * The values of Vx and Vy are added together.
+                     * If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0.
+                     * Only the lowest 8 bits of the result are kept, and stored in Vx.
+                     */
+                    if ((V[X] += V[Y]) > 255) {
+                        V[0xF] = 1;
+                    } else {
+                        V[0xF] = 0;
+                    }
+
+                    V[X] &= 0x00FF;
+
+                    pc += 2;
                     break;
-                case 0x0005: // SUB Vx, Vy
+                case 0x0005:
+                    /*
+                     * 8xy5 - SUB Vx, Vy
+                     * Set Vx = Vx - Vy, set VF = NOT borrow.
+                     *
+                     * If Vx > Vy, then VF is set to 1, otherwise 0.
+                     * Then Vy is subtracted from Vx, and the results stored in Vx.
+                     */
+                    V[X] -= V[Y];
+                    V[0xF] = V[X] > V[Y];
+
+                    pc += 2;
                     break;
-                case 0x0006: // SHR Vx {, Vy}
+
+                case 0x0006:
+                    /*
+                     * 8xy6 - SHR Vx {, Vy}
+                     * Set Vx = Vx SHR 1.
+                     *
+                     * If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0.
+                     * Then Vx is divided by 2.
+                     */
+                    V[0xF] = V[X] & 1;
+                    V[X] >>= 1;
+
+                    pc += 2;
                     break;
-                case 0x0007: // SUBN Vx, Vy
+
+                case 0x0007:
+                    /*
+                     * 8xy7 - SUBN Vx, Vy
+                     * Set Vx = Vy - Vx, set VF = NOT borrow.
+                     *
+                     * If Vy > Vx, then VF is set to 1, otherwise 0.
+                     * Then Vx is subtracted from Vy, and the results stored in Vx.
+                     */
+                    V[0xF] = V[Y] > V[X];
+                    V[X] = V[Y] - V[X];
+
+                    pc += 2;
                     break;
-                case 0x000E: // SHL Vx {, Vy}
+
+                case 0x000E:
+                    /*
+                     * 8xyE - SHL Vx {, Vy}
+                     * Set Vx = Vx SHL 1.
+                     *
+                     * If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0.
+                     * Then Vx is multiplied by 2.
+                     */
+                    V[X] <<= 1;
+                    V[0xF] = V[X] & 0x80;
+
+                    pc += 2;
                     break;
 
                 default:
                     std::cout << "Unknown opcode: " << opcode << "\n";
             }
             break;
-        case 0x9000: // SNE Vx, Vy
+        case 0x9000:
+            /*
+             * 9xy0 - SNE Vx, Vy
+             * Skip next instruction if Vx != Vy.
+             *
+             * The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
+             */
+            pc += (V[X] != V[Y]) ? 2 : 0;
+
+            pc += 2;
             break;
-        case 0xA000: // LD I, addr
+        case 0xA000:
+            /*
+             * Annn - LD I, addr
+             * Set I = nnn.
+             *
+             * The value of register I is set to nnn.
+             */
             I = opcode & 0x0FFF;
             pc += 2;
             break;
 
-        case 0xB000: // JP V0, addr
+        case 0xB000:
+            /*
+             * Bnnn - JP V0, addr
+             * Jump to location nnn + V0.
+             *
+             * The program counter is set to nnn plus the value of V0.
+             */
+            pc = NNN + V[0x0];
+
+            pc += 2;
             break;
-        case 0xC000: // RND Vx, byte
+
+        case 0xC000:
+            /*
+             * Cxkk - RND Vx, byte
+             * Set Vx = random byte AND kk.
+             *
+             * The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk.
+             * The results are stored in Vx. See instruction 8xy2 for more information on AND.
+             */
+
+            int randVal = rand() % 256;
+            V[X] = randVal & KK;
+
+            pc += 2;
             break;
-        case 0xD000: // DRW Vx, Vy, nibble
+
+        case 0xD000:
+            /*
+             * Dxyn - DRW Vx, Vy, nibble
+             * Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+             *
+             * The interpreter reads n bytes from memory, starting at the address stored in I. These bytes are
+             * then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen.
+             * If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0. If the sprite is
+             * positioned so part of it is outside the coordinates of the display, it wraps around to the opposite
+             * side of the screen. See instruction 8xy3 for more information on XOR, and section 2.4, Display,
+             * for more information on the Chip-8 screen and sprites.
+             */
+            for (unsigned int i = 0; i < N; ++i) {
+                gfx[X * Y] = memory[I];
+            }
+            //TODO: XOR sprites to screen and set flags
             break;
+
         case 0xE000:
             switch (opcode & 0x000F) {
-                case 0x000E: // SKP Vx
+                case 0x000E:
+                    /*
+                     * Ex9E - SKP Vx
+                     * Skip next instruction if key with the value of Vx is pressed.
+                     *
+                     * Checks the keyboard, and if the key corresponding to the value of Vx is currently in
+                     * the down position, PC is increased by 2.
+                     */
+                    // Windows key state
+                    if (GetKeyState(V[X]) & 0x8000) {
+                        pc += 2;
+                    }
+                    // TODO: make some sort of cross platform key state getter
+
+                    pc += 2;
                     break;
-                case 0x0001: // SKNP Vx
+                case 0x0001:
+                    /*
+                     * ExA1 - SKNP Vx
+                     * Skip next instruction if key with the value of Vx is not pressed.
+                     *
+                     * Checks the keyboard, and if the key corresponding to the value of Vx is currently in
+                     * the up position, PC is increased by 2.
+                     */
+                    if (!(GetKeyState(V[X]) & 0x8000)) {
+                        pc += 2;
+                    }
+
+                    pc += 2;
+                    break;
 
                 default:
                     std::cout << "Unknown opcode: " << opcode << "\n";
             }
             break;
+
         case 0xF000:
             switch (opcode & 0x00F0) {
                 case 0x0000:
                     switch (opcode & 0x000F) {
-                        case 0x0007: // LD Vx, DT
+                        case 0x0007:
+                            // TODO: Add Fx07 - LD Vx, DT
+                            /*
+                             * Fx07 - LD Vx, DT
+                             * Set Vx = delay timer value.
+                             *
+                             * The value of DT is placed into Vx.
+                             */
+                            throw NotImplementedException();
                             break;
-                        case 0x000A: // LD Vx, K
+
+                        case 0x000A:
+                            // TODO: Add Fx0A - LD Vx, K
+                            /*
+                             * Fx0A - LD Vx, K
+                             * Wait for a key press, store the value of the key in Vx.
+                             *
+                             * All execution stops until a key is pressed, then the value of that key is stored in Vx.
+                            */
+                            throw NotImplementedException();
                             break;
 
                         default:
@@ -204,23 +425,96 @@ void chip8::emulateCycle()
                     }
                 case 0x0010:
                     switch (opcode & 0x000F) {
-                        case 0x0005: // LD DT, Vx
+                        case 0x0005:
+                            // TODO: Add Fx15 - LD DT, Vx
+                            /*
+                             * Fx15 - LD DT, Vx
+                             * Set delay timer = Vx.
+                             *
+                             * DT is set equal to the value of Vx.
+                             */
+                            throw NotImplementedException();
                             break;
-                        case 0x0008: // LD ST, Vx
+
+                        case 0x0008:
+                            // TODO: Add Fx18 - LD ST, Vx
+                            /*
+                             * Fx18 - LD ST, Vx
+                             * Set sound timer = Vx.
+                             *
+                             * ST is set equal to the value of Vx.
+                             */
+                            throw NotImplementedException();
                             break;
-                        case 0x000E: // ADD I, Vx
+
+                        case 0x000E:
+                            /*
+                             * Fx1E - ADD I, Vx
+                             * Set I = I + Vx.
+                             *
+                             * The values of I and Vx are added, and the results are stored in I.
+                             */
+                            I += V[X];
+9
+                            pc += 2;
                             break;
 
                         default:
                             std::cout << "Unknown opcode: " << opcode << "\n";
                     }
-                case 0x0020: // LD F, Vx
+                case 0x0020:
+                    // TODO: Add Fx29 - LD F, Vx
+                    /*
+                     * Fx29 - LD F, Vx
+                     * Set I = location of sprite for digit Vx.
+                     *
+                     * The value of I is set to the location for the hexadecimal sprite corresponding to
+                     * the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
+                     */
+                    I = V[X];
+                    pc += 2;
                     break;
-                case 0x0030: // LD B, Vx
+
+                case 0x0030:
+                    // TODO: Add Fx33 - LD B, Vx
+                    /*
+                     * Fx33 - LD B, Vx
+                     * Store BCD representation of Vx in memory locations I, I+1, and I+2.
+                     *
+                     * The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at
+                     * location in I, the tens digit at location I+1, and the ones digit at location I+2.
+                     */
+                    throw NotImplementedException();
                     break;
-                case 0x0050: // LD [I], Vx
+
+                case 0x0050:
+                    /*
+                     * Fx55 - LD [I], Vx
+                     * Store registers V0 through Vx in memory starting at location I.
+                     *
+                     * The interpreter copies the values of registers V0 through Vx into memory,
+                     * starting at the address in I.
+                     */
+                    for (unsigned int i = 0; i < X; ++i) {
+                        memory[I + i] = V[0 + i];
+                    }
+
+                    pc += 2;
                     break;
-                case 0x0060: // LD Vx, [I]
+
+                case 0x0060:
+                    /*
+                     * Fx65 - LD Vx, [I]
+                     * Read registers V0 through Vx from memory starting at location I.
+                     *
+                     * The interpreter reads values from memory starting at location I into registers V0 through Vx.
+                     */
+
+                    for (int i = 0; i < X; ++i) {
+                        V[i] = memory[I + i];
+                    }
+
+                    pc += 2;
                     break;
 
                 default:
