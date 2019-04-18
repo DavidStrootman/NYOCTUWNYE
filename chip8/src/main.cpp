@@ -1,8 +1,9 @@
 
 // #include    OpenGL graphics and input
 #include "include/chip8.h" // Your cpu core implementation
-#define ever ;;
-Chip8 myChip8;
+#include "include/globals.h"
+
+chip8 myChip8;
 
 int main(int argc, char **argv)
 {

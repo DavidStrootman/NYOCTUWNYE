@@ -4,16 +4,15 @@
 // Most of the comments in this file come from Cowgod's Chip-8 Technical reference
 //
 
+#include <thread>
+#include <tgmath.h>
 #include "include/chip8.h"
+#include "include/globals.h"
 
 chip8::chip8() : gfx(), V(), stack()
 {
     pc = 0x200; // Program counter (First 512/0x200 bytes are reserved for Chip8)
     opcode = 0; // Current opcode
-
-    I = 0; // Index Register
-    sp = 0; // Stack pointer
-
 }
 
 void chip8::initialize()
@@ -27,9 +26,28 @@ void chip8::initialize()
         memory[i] = chip8_fontset[i];
     }
 
+    I = 0; // Index Register
+    sp = 0; // Stack pointer
+
+    draw_flag = false;
+
     delay_timer = 0;
     sound_timer = 0;
+
+    timer_loop();
 }
+
+void chip8::timer_loop()
+{
+    for(ever) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 60));
+        if (delay_timer > 0)
+            --delay_timer;
+        if (sound_timer > 0)
+            --sound_timer;
+    }
+}
+
 void chip8::emulateCycle()
 {
     opcode = memory[pc] << 8 | memory[pc + 1];
@@ -37,17 +55,18 @@ void chip8::emulateCycle()
 
     // Decode opcode
     switch (opcode & 0xF000) {
-        case 0x0000:
+        case 0x0000: {
             switch (opcode & 0x000F) {
-                case 0x0000:
+                case 0x0000: {
                     /*
                      * 00E0 - CLS
                      * Clear the display.
                      */
                     memset(gfx, 0, sizeof(gfx));
                     break;
+                }
 
-                case 0x000E:
+                case 0x000E: {
 
                     /*
                      * 00EE - RET
@@ -58,13 +77,15 @@ void chip8::emulateCycle()
                      */
                     pc = stack[sp--] + 1;
                     break;
-
-                default:
-                    std::cout << "Unknown opcode: " << opcode << "\n";
+                }
+                default: {
+                    goto unknown_opcode;
+                }
             }
             break;
+        }
 
-        case 0x1000:
+        case 0x1000: {
             /*
              * 1nnn - JP addr
              * Jump to location nnn.
@@ -72,8 +93,9 @@ void chip8::emulateCycle()
              */
             pc = NNN;
             break;
+        }
 
-        case 0x2000:
+        case 0x2000: {
             /*
              * 2nnn - CALL addr
              * Call subroutine at nnn.
@@ -85,8 +107,9 @@ void chip8::emulateCycle()
             ++sp;
             pc = NNN;
             break;
+        }
 
-        case 0x3000:
+        case 0x3000: {
             /*
              * 3xkk - SE Vx, byte
              * Skip next instruction if Vx = kk.
@@ -99,8 +122,9 @@ void chip8::emulateCycle()
             }
             pc += 2;
             break;
+        }
 
-        case 0x4000:
+        case 0x4000: {
             /*
              * 4xkk - SNE Vx, byte
              * Skip next instruction if Vx != kk.
@@ -113,8 +137,9 @@ void chip8::emulateCycle()
             }
             pc += 2;
             break;
+        }
 
-        case 0x5000:
+        case 0x5000: {
             /*
              * 5xy0 - SE Vx, Vy
              * Skip next instruction if Vx = Vy.
@@ -128,8 +153,9 @@ void chip8::emulateCycle()
             }
             pc += 2;
             break;
+        }
 
-        case 0x6000:
+        case 0x6000: {
             /*
              * 6xkk - LD Vx, byte
              * Set Vx = kk.
@@ -140,8 +166,9 @@ void chip8::emulateCycle()
 
             pc += 2;
             break;
+        }
 
-        case 0x7000:
+        case 0x7000: {
             /*
              * 7xkk - ADD Vx, byte
              * Set Vx = Vx + kk.
@@ -152,10 +179,11 @@ void chip8::emulateCycle()
 
             pc += 2;
             break;
+        }
 
-        case 0x8000:
+        case 0x8000: {
             switch (opcode & 0x000F) {
-                case 0x0000:
+                case 0x0000: {
                     /*
                      * 8xy0 - LD Vx, Vy
                      * Set Vx = Vy.
@@ -166,8 +194,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0001:
+                case 0x0001: {
                     /*
                      * 8xy1 - OR Vx, Vy
                      * Set Vx = Vx OR Vy.
@@ -180,8 +209,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0002:
+                case 0x0002: {
                     /*
                      * 8xy2 - AND Vx, Vy
                      * Set Vx = Vx AND Vy.
@@ -194,8 +224,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0003:
+                case 0x0003: {
                     /*
                      * 8xy3 - XOR Vx, Vy
                      * Set Vx = Vx XOR Vy.
@@ -209,8 +240,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0004:
+                case 0x0004: {
                     /*
                      * 8xy4 - ADD Vx, Vy
                      * Set Vx = Vx + Vy, set VF = carry.
@@ -229,7 +261,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
-                case 0x0005:
+                }
+
+                case 0x0005: {
                     /*
                      * 8xy5 - SUB Vx, Vy
                      * Set Vx = Vx - Vy, set VF = NOT borrow.
@@ -242,8 +276,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0006:
+                case 0x0006: {
                     /*
                      * 8xy6 - SHR Vx {, Vy}
                      * Set Vx = Vx SHR 1.
@@ -256,8 +291,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0007:
+                case 0x0007: {
                     /*
                      * 8xy7 - SUBN Vx, Vy
                      * Set Vx = Vy - Vx, set VF = NOT borrow.
@@ -270,8 +306,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x000E:
+                case 0x000E: {
                     /*
                      * 8xyE - SHL Vx {, Vy}
                      * Set Vx = Vx SHL 1.
@@ -284,12 +321,16 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                default:
-                    std::cout << "Unknown opcode: " << opcode << "\n";
+                default: {
+                    goto unknown_opcode;
+                }
             }
             break;
-        case 0x9000:
+        }
+
+        case 0x9000: {
             /*
              * 9xy0 - SNE Vx, Vy
              * Skip next instruction if Vx != Vy.
@@ -300,7 +341,9 @@ void chip8::emulateCycle()
 
             pc += 2;
             break;
-        case 0xA000:
+        }
+
+        case 0xA000: {
             /*
              * Annn - LD I, addr
              * Set I = nnn.
@@ -308,10 +351,12 @@ void chip8::emulateCycle()
              * The value of register I is set to nnn.
              */
             I = opcode & 0x0FFF;
+
             pc += 2;
             break;
+        }
 
-        case 0xB000:
+        case 0xB000: {
             /*
              * Bnnn - JP V0, addr
              * Jump to location nnn + V0.
@@ -322,8 +367,9 @@ void chip8::emulateCycle()
 
             pc += 2;
             break;
+        }
 
-        case 0xC000:
+        case 0xC000: {
             /*
              * Cxkk - RND Vx, byte
              * Set Vx = random byte AND kk.
@@ -332,13 +378,14 @@ void chip8::emulateCycle()
              * The results are stored in Vx. See instruction 8xy2 for more information on AND.
              */
 
-            int randVal = rand() % 256;
+            auto randVal = (unsigned char) rand();
             V[X] = randVal & KK;
 
             pc += 2;
             break;
+        }
 
-        case 0xD000:
+        case 0xD000: {
             /*
              * Dxyn - DRW Vx, Vy, nibble
              * Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
@@ -350,15 +397,30 @@ void chip8::emulateCycle()
              * side of the screen. See instruction 8xy3 for more information on XOR, and section 2.4, Display,
              * for more information on the Chip-8 screen and sprites.
              */
-            for (unsigned int i = 0; i < N; ++i) {
-                gfx[X * Y] = memory[I];
-            }
-            //TODO: XOR sprites to screen and set flags
-            break;
+            unsigned short height = opcode & 0x000F;
+            unsigned short pixel;
 
-        case 0xE000:
+            V[0xF] = 0;
+            for (int yline = 0; yline < height; yline++) {
+                pixel = memory[I + yline];
+                for (int x_line = 0; x_line < 8; x_line++) {
+                    if ((pixel & (0x80 >> x_line)) != 0) {
+                        if (gfx[(X + x_line + ((Y + yline) * 64))] == 1)
+                            V[0xF] = 1;
+                        gfx[X + x_line + ((Y + yline) * 64)] ^= 1;
+                    }
+                }
+            }
+
+            draw_flag = true;
+
+            pc += 2;
+            break;
+        }
+
+        case 0xE000: {
             switch (opcode & 0x000F) {
-                case 0x000E:
+                case 0x000E: {
                     /*
                      * Ex9E - SKP Vx
                      * Skip next instruction if key with the value of Vx is pressed.
@@ -370,11 +432,12 @@ void chip8::emulateCycle()
                     if (GetKeyState(V[X]) & 0x8000) {
                         pc += 2;
                     }
-                    // TODO: make some sort of cross platform key state getter
 
                     pc += 2;
                     break;
-                case 0x0001:
+                }
+
+                case 0x0001: {
                     /*
                      * ExA1 - SKNP Vx
                      * Skip next instruction if key with the value of Vx is not pressed.
@@ -388,67 +451,82 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                default:
-                    std::cout << "Unknown opcode: " << opcode << "\n";
+                default: {
+                    goto unknown_opcode;
+                }
             }
             break;
+        }
 
-        case 0xF000:
+        case 0xF000: {
             switch (opcode & 0x00F0) {
-                case 0x0000:
+                case 0x0000: {
                     switch (opcode & 0x000F) {
-                        case 0x0007:
-                            // TODO: Add Fx07 - LD Vx, DT
+                        case 0x0007: {
                             /*
                              * Fx07 - LD Vx, DT
                              * Set Vx = delay timer value.
                              *
                              * The value of DT is placed into Vx.
                              */
-                            throw NotImplementedException();
+                            V[X] = delay_timer;
 
                             break;
+                        }
 
-                        case 0x000A:
-                            // TODO: Add Fx0A - LD Vx, K
+                        case 0x000A: {
+                            // TODO: check if correct character is given
                             /*
                              * Fx0A - LD Vx, K
                              * Wait for a key press, store the value of the key in Vx.
                              *
                              * All execution stops until a key is pressed, then the value of that key is stored in Vx.
                             */
-                            throw NotImplementedException();
-                            break;
+                            unsigned char key;
+                            key = getch();
+                            V[X] = key;
 
-                        default:
-                            std::cout << "Unknown opcode: " << opcode << "\n";
+                            pc += 2;
+                            break;
+                        }
+
+                        default: {
+                            goto unknown_opcode;
+                        }
                     }
-                case 0x0010:
+                }
+
+                case 0x0010: {
                     switch (opcode & 0x000F) {
-                        case 0x0005:
-                            // TODO: Add Fx15 - LD DT, Vx
+                        case 0x0005: {
                             /*
                              * Fx15 - LD DT, Vx
                              * Set delay timer = Vx.
                              *
                              * DT is set equal to the value of Vx.
                              */
-                            throw NotImplementedException();
-                            break;
+                            delay_timer = V[X];
 
-                        case 0x0008:
-                            // TODO: Add Fx18 - LD ST, Vx
+                            pc += 2;
+                            break;
+                        }
+
+                        case 0x0008: {
                             /*
                              * Fx18 - LD ST, Vx
                              * Set sound timer = Vx.
                              *
                              * ST is set equal to the value of Vx.
                              */
-                            throw NotImplementedException();
-                            break;
+                            sound_timer = V[X];
 
-                        case 0x000E:
+                            pc += 2;
+                            break;
+                        }
+
+                        case 0x000E: {
                             /*
                              * Fx1E - ADD I, Vx
                              * Set I = I + Vx.
@@ -459,12 +537,16 @@ void chip8::emulateCycle()
 
                             pc += 2;
                             break;
+                        }
 
-                        default:
-                            std::cout << "Unknown opcode: " << opcode << "\n";
+                        default: {
+                            goto unknown_opcode;
+                        }
                     }
-                case 0x0020:
-                    // TODO: Add Fx29 - LD F, Vx
+                }
+
+                case 0x0020: {
+                    // TODO: Make sure this works
                     /*
                      * Fx29 - LD F, Vx
                      * Set I = location of sprite for digit Vx.
@@ -472,13 +554,13 @@ void chip8::emulateCycle()
                      * The value of I is set to the location for the hexadecimal sprite corresponding to
                      * the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
                      */
-                    I = V[X];
+                    I = memory[V[X] * 5];
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0030:
-                    // TODO: Add Fx33 - LD B, Vx
+                case 0x0030: {
                     /*
                      * Fx33 - LD B, Vx
                      * Store BCD representation of Vx in memory locations I, I+1, and I+2.
@@ -486,10 +568,14 @@ void chip8::emulateCycle()
                      * The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at
                      * location in I, the tens digit at location I+1, and the ones digit at location I+2.
                      */
-                    throw NotImplementedException();
-                    break;
+                    memory[I] = V[X] % 10;
+                    memory[I + 1] = round((V[X] / 10) % 10);
+                    memory[I + 2] = round((V[X] / 100) % 10);
 
-                case 0x0050:
+                    break;
+                }
+
+                case 0x0050: {
                     /*
                      * Fx55 - LD [I], Vx
                      * Store registers V0 through Vx in memory starting at location I.
@@ -503,8 +589,9 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                case 0x0060:
+                case 0x0060: {
                     /*
                      * Fx65 - LD Vx, [I]
                      * Read registers V0 through Vx from memory starting at location I.
@@ -518,12 +605,17 @@ void chip8::emulateCycle()
 
                     pc += 2;
                     break;
+                }
 
-                default:
-                    std::cout << "Unknown opcode: " << opcode << "\n";
+                default: {
+                    goto unknown_opcode;
+                }
             }
+        }
 
-        default:
+        default: {
+        unknown_opcode:
             std::cout << "Unknown opcode: " << opcode << "\n";
+        }
     }
 }

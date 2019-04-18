@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string.h>
 #include <winuser.h>
+#include "getch.h"
 
 #include "opcode_helper.h"
 #include "NotImplementedException.h"
@@ -26,6 +27,8 @@ class chip8 {
         unsigned short sp; // Stack pointer
 
         unsigned char memory[4096] = {};
+
+        bool draw_flag;
 
         unsigned char delay_timer;
         unsigned char sound_timer;
@@ -49,6 +52,8 @@ class chip8 {
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
+
+        void timer_loop();
     public:
         chip8();
         void chip8::initialize();
