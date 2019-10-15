@@ -1,33 +1,37 @@
+#include "includes/globals.h"
 
-// #include    OpenGL graphics and input
-#include "include/chip8.h" // Your cpu core implementation
-#include "include/globals.h"
+#include "fileReader/FileReader.h"
+#include "dumpBuffer.cpp"
+#include <SDL.h>
+#include "chip8.h"
 
-chip8 myChip8;
+int main(int argc, char **argv) {
+    unsigned char buffer[MEMORY_SIZE];
 
-int main(int argc, char **argv)
-{
-  // Set up render system and register input callbacks
-  setupGraphics();
-  setupInput();
+    std::ifstream rom = std::ifstream("../pong.rom", std::ios::in | std::ios::binary);
 
-  // Initialize the Chip8 system and load the game into the memory
-  myChip8.initialize();
-  myChip8.loadGame("pong");
+    FileReader::readFileIntoBuffer(rom, buffer);
 
-  // Emulation loop
-  for(ever)
-  {
-    // Emulate one cycle
-    myChip8.emulateCycle();
+    SDL_Window * screen = nullptr;
 
-    // If the draw flag is set, update the screen
-    if(myChip8.drawFlag)
-      drawGraphics();
+    SDL_Init(SDL_INIT_VIDEO);              // Initialize SDL2
 
-    // Store key press state (Press and Release)
-    myChip8.setKeys();
-  }
+    //TODO: implement front-end
+    // Create an application window with the following settings:
+//    screen = SDL_CreateWindow(
+//            "An SDL2 window",                  // window title
+//            SDL_WINDOWPOS_UNDEFINED,           // initial x position
+//            SDL_WINDOWPOS_UNDEFINED,           // initial y position
+//            64,                               // width, in pixels
+//            32,                               // height, in pixels
+//            SDL_WINDOW_OPENGL                  // flags - see below
+//    );
 
-  return 0;
+
+    chip8 chip8(screen);
+    chip8.initialize();
+    chip8.loadProgram(buffer, MEMORY_SIZE);
+    chip8.run();
+
+    return 0;
 }

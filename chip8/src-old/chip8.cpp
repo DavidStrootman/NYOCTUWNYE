@@ -5,24 +5,16 @@
 //
 
 #include <thread>
-#include <cmath>
-#include "chip8.h"
+#include "include/chip8.h"
 
-chip8::chip8(SDL_Window * screen): I(), sp(), delay_timer(), sound_timer(), draw_flag(), gfx(), screen( screen ), V()
+chip8::chip8(): I(), sp(), delay_timer(), sound_timer(), draw_flag(), gfx(), V()
 {
     pc = 0x200; // Program counter (First 512/0x200 bytes are reserved for Chip8)
     opcode = 0; // Current opcode
 }
 
-void chip8::loadProgram(const unsigned char * program, int size) {
-    for (int i = 0; i < size; ++i) {
-        memory[i + 512] = program[i];
-    }
-}
-
 void chip8::initialize()
 {
-    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED);
     // zero-initialize gfx, stack, registers and memory
     memset(gfx, 0, sizeof(gfx));
     memset(stack, 0, sizeof(stack));
@@ -35,83 +27,61 @@ void chip8::initialize()
 
     I = 0; // Index Register
     sp = 0; // Stack pointer
-    pc = 0x200; // program counter (starts at first byte of program memory: 512)
 
     draw_flag = false;
 
     delay_timer = 0;
     sound_timer = 0;
-}
 
-void chip8::run() {
     timer_loop();
 }
 
 void chip8::timer_loop()
 {
-    // this obviously doesn't work
     for(;;) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1000 / 60));
         if (delay_timer > 0)
             --delay_timer;
         if (sound_timer > 0)
             --sound_timer;
-        emulateCycle();
-        updateScreen();
     }
 }
 
 void chip8::emulateCycle()
 {
-    // Program memory starts at 512
     opcode = memory[pc] << 8 | memory[pc + 1];
-
     char reg1 = 0x00;
-    std::cout << "pc: " << (pc - 512) << ", opcode: " << std::hex << (opcode) << std::endl;
 
     // Decode opcode
     switch (opcode & 0xF000) {
         case 0x0000: {
-            switch (opcode & 0x0FF0) {
-                case 0x00E0: {
-                    switch (opcode & 0x000F) {
-                        case 0x0000: {
-                            /*
-                             * 00E0 - CLS
-                             * Clear the display.
-                             */
-                            memset(gfx, 0, sizeof(gfx));
-                            return;
-                        }
-                        case 0x000E: {
+            switch (opcode & 0x000F) {
+                case 0x0000: {
+                    /*
+                     * 00E0 - CLS
+                     * Clear the display.
+                     */
+                    memset(gfx, 0, sizeof(gfx));
+                    break;
+                }
 
-                            /*
-                             * 00EE - RET
-                             * Return from a subroutine.
-                             *
-                             * The interpreter sets the program counter to the address at the top of the stack,
-                             * then subtracts 1 from the stack pointer.
-                             */
-                            pc = stack[sp--] + 2;
-                            return;
-                        }
-                        default: {
-                            goto unknown_opcode;
-                        }
-                    }
+                case 0x000E: {
+
+                    /*
+                     * 00EE - RET
+                     * Return from a subroutine.
+                     *
+                     * The interpreter sets the program counter to the address at the top of the stack,
+                     * then subtracts 1 from the stack pointer.
+                     */
+                    pc = stack[sp--] + 1;
+                    break;
                 }
                 default: {
-                    /**
-                     * 0nnn - SYS addr
-                     * Jump to a machine code routine at nnn.
-                     *
-                     * This instruction is only used on the old computers on which Chip-8 was originally implemented.
-                     * !!!!!!!!!!!!!!It is ignored by modern interpreters.!!!!!!!!!!!!!!!!
-                     */
-                    pc += 2;
-                    return;
+                    goto unknown_opcode;
                 }
             }
+            break;
         }
 
         case 0x1000: {
@@ -121,7 +91,7 @@ void chip8::emulateCycle()
              * The interpreter sets the program counter to nnn.
              */
             pc = NNN;
-            return;
+            break;
         }
 
         case 0x2000: {
@@ -132,10 +102,10 @@ void chip8::emulateCycle()
              * The interpreter increments the stack pointer, then puts the current PC on the top of the stack.
              * The PC is then set to nnn.
              */
-            ++sp;
             stack[sp] = pc;
+            ++sp;
             pc = NNN;
-            return;
+            break;
         }
 
         case 0x3000: {
@@ -150,7 +120,7 @@ void chip8::emulateCycle()
                 pc += 2;
             }
             pc += 2;
-            return;
+            break;
         }
 
         case 0x4000: {
@@ -165,7 +135,7 @@ void chip8::emulateCycle()
                 pc += 2;
             }
             pc += 2;
-            return;
+            break;
         }
 
         case 0x5000: {
@@ -181,7 +151,7 @@ void chip8::emulateCycle()
                 pc += 2;
             }
             pc += 2;
-            return;
+            break;
         }
 
         case 0x6000: {
@@ -194,7 +164,7 @@ void chip8::emulateCycle()
             V[X] = KK;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0x7000: {
@@ -207,7 +177,7 @@ void chip8::emulateCycle()
             V[X] += KK;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0x8000: {
@@ -222,7 +192,7 @@ void chip8::emulateCycle()
                     V[X] = V[Y];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0001: {
@@ -237,7 +207,7 @@ void chip8::emulateCycle()
                     V[X] |= V[Y];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0002: {
@@ -252,7 +222,7 @@ void chip8::emulateCycle()
                     V[X] &= V[Y];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0003: {
@@ -268,7 +238,7 @@ void chip8::emulateCycle()
                     V[X] ^= V[Y];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0004: {
@@ -289,7 +259,7 @@ void chip8::emulateCycle()
                     V[X] &= 0x00FF;
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0005: {
@@ -304,7 +274,7 @@ void chip8::emulateCycle()
                     V[0xF] = V[X] > V[Y];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0006: {
@@ -319,7 +289,7 @@ void chip8::emulateCycle()
                     V[X] >>= 1;
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0007: {
@@ -334,7 +304,7 @@ void chip8::emulateCycle()
                     V[X] = V[Y] - V[X];
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x000E: {
@@ -349,14 +319,14 @@ void chip8::emulateCycle()
                     V[0xF] = V[X] & 0x80;
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 default: {
                     goto unknown_opcode;
                 }
             }
-            return;
+            break;
         }
 
         case 0x9000: {
@@ -369,7 +339,7 @@ void chip8::emulateCycle()
             pc += (V[X] != V[Y]) ? 2 : 0;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0xA000: {
@@ -382,7 +352,7 @@ void chip8::emulateCycle()
             I = opcode & 0x0FFF;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0xB000: {
@@ -395,7 +365,7 @@ void chip8::emulateCycle()
             pc = NNN + V[0x0];
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0xC000: {
@@ -411,7 +381,7 @@ void chip8::emulateCycle()
             V[X] = randVal & KK;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0xD000: {
@@ -426,14 +396,15 @@ void chip8::emulateCycle()
              * side of the screen. See instruction 8xy3 for more information on XOR, and section 2.4, Display,
              * for more information on the Chip-8 screen and sprites.
              */
-            uint8_t pixel;
+            unsigned short height = opcode & 0x000F;
+            unsigned short pixel;
 
             V[0xF] = 0;
-            for (int yline = 0; yline < N; ++yline) {
+            for (int yline = 0; yline < height; yline++) {
                 pixel = memory[I + yline];
-                for (int x_line = 0; x_line < 8; ++x_line) {
+                for (int x_line = 0; x_line < 8; x_line++) {
                     if ((pixel & (0x80 >> x_line)) != 0) {
-                        if (gfx[V[X] + x_line + ((V[Y] + yline) * 64)] == 1)
+                        if (gfx[(X + x_line + ((Y + yline) * 64))] == 1)
                             V[0xF] = 1;
                         gfx[X + x_line + ((Y + yline) * 64)] ^= 1;
                     }
@@ -443,12 +414,12 @@ void chip8::emulateCycle()
             draw_flag = true;
 
             pc += 2;
-            return;
+            break;
         }
 
         case 0xE000: {
-            switch (opcode & 0x00FF) {
-                case 0x009E: {
+            switch (opcode & 0x000F) {
+                case 0x000E: {
                     /*
                      * Ex9E - SKP Vx
                      * Skip next instruction if key with the value of Vx is pressed.
@@ -456,16 +427,16 @@ void chip8::emulateCycle()
                      * Checks the keyboard, and if the key corresponding to the value of Vx is currently in
                      * the down position, PC is increased by 2.
                      */
-                    //TODO: key state
-//                    if (getKeyState(V[X]) & 0x8000) {
-//                        pc += 2;
-//                    }
+                    // Windows key state
+                    if (GetKeyState(V[X]) & 0x8000) {
+                        pc += 2;
+                    }
+
                     pc += 2;
-                    goto not_implemented;
-                    return;
+                    break;
                 }
 
-                case 0x00A1: {
+                case 0x0001: {
                     /*
                      * ExA1 - SKNP Vx
                      * Skip next instruction if key with the value of Vx is not pressed.
@@ -473,21 +444,19 @@ void chip8::emulateCycle()
                      * Checks the keyboard, and if the key corresponding to the value of Vx is currently in
                      * the up position, PC is increased by 2.
                      */
-                    //TODO: Key state
-//                    if (!(getKeyState(V[X]) & 0x8000)) {
-//                        pc += 2;
-//                    }
+                    if (!(GetKeyState(V[X]) & 0x8000)) {
+                        pc += 2;
+                    }
 
                     pc += 2;
-                    goto not_implemented;
-                    return;
+                    break;
                 }
 
                 default: {
                     goto unknown_opcode;
                 }
             }
-            return;
+            break;
         }
 
         case 0xF000: {
@@ -503,11 +472,11 @@ void chip8::emulateCycle()
                              */
                             V[X] = delay_timer;
 
-                            pc += 2;
-                            return;
+                            break;
                         }
 
                         case 0x000A: {
+                            // TODO: check if correct character is given
                             /*
                              * Fx0A - LD Vx, K
                              * Wait for a key press, store the value of the key in Vx.
@@ -515,13 +484,11 @@ void chip8::emulateCycle()
                              * All execution stops until a key is pressed, then the value of that key is stored in Vx.
                             */
                             unsigned char key;
-                            //TODO: Key press
-//                            key = getch();
+                            key = getch();
                             V[X] = key;
 
                             pc += 2;
-                            goto not_implemented;
-                            return;
+                            break;
                         }
 
                         default: {
@@ -542,7 +509,7 @@ void chip8::emulateCycle()
                             delay_timer = V[X];
 
                             pc += 2;
-                            return;
+                            break;
                         }
 
                         case 0x0008: {
@@ -555,7 +522,7 @@ void chip8::emulateCycle()
                             sound_timer = V[X];
 
                             pc += 2;
-                            return;
+                            break;
                         }
 
                         case 0x000E: {
@@ -568,7 +535,7 @@ void chip8::emulateCycle()
                             I += V[X];
 
                             pc += 2;
-                            return;
+                            break;
                         }
 
                         default: {
@@ -589,8 +556,7 @@ void chip8::emulateCycle()
                     I = memory[V[X] * 5];
 
                     pc += 2;
-                    goto not_implemented;
-                    return;
+                    break;
                 }
 
                 case 0x0030: {
@@ -602,11 +568,10 @@ void chip8::emulateCycle()
                      * location in I, the tens digit at location I+1, and the ones digit at location I+2.
                      */
                     memory[I] = V[X] % 10;
-                    memory[I + 1] = (unsigned char)round((V[X] / 10) % 10);
-                    memory[I + 2] = (unsigned char)round((V[X] / 100) % 10);
+                    memory[I + 1] = round((V[X] / 10) % 10);
+                    memory[I + 2] = round((V[X] / 100) % 10);
 
-                    pc+=2;
-                    return;
+                    break;
                 }
 
                 case 0x0050: {
@@ -622,7 +587,7 @@ void chip8::emulateCycle()
                     }
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 case 0x0060: {
@@ -638,7 +603,7 @@ void chip8::emulateCycle()
                     }
 
                     pc += 2;
-                    return;
+                    break;
                 }
 
                 default: {
@@ -646,25 +611,10 @@ void chip8::emulateCycle()
                 }
             }
         }
-        not_implemented:
-            std::cout << "not implemented: " << opcode << "\n";
-            return;
+
         default: {
         unknown_opcode:
             std::cout << "Unknown opcode: " << opcode << "\n";
         }
     }
 }
-
-void chip8::updateScreen() {
-    //TODO: implement front-end
-//    for (unsigned int y = 0; y < 32; ++y) {
-//        for (unsigned int x = 0; x < 64; ++x) {
-//            if (gfx[x] == 1) {
-//                SDL_RenderDrawPoint(renderer, x, y);
-//            } else {
-//
-//            }
-//        }
-//    }
-};

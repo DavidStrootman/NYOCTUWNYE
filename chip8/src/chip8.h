@@ -5,18 +5,18 @@
 #ifndef CHIP8_CHIP8_H
 #define CHIP8_CHIP8_H
 
+#include <SDL.h>
 #include <iostream>
-#include <string.h>
-#include <winuser.h>
-#include "getch.h"
+#include <cstring>
 
 #include "opcode_helper.h"
 #include "NotImplementedException.h"
 
 class chip8 {
     private:
-
         unsigned char gfx[64 * 32]; // Temporary display
+        SDL_Window * screen;
+        SDL_Renderer * renderer;
         unsigned short pc; // Program counter (First 512/0x200 bytes are reserved for Chip8)
         unsigned short opcode; // Current opcode
 
@@ -25,10 +25,6 @@ class chip8 {
 
         unsigned short stack[16] = {}; // Stack
         unsigned short sp; // Stack pointer
-
-        unsigned char memory[4096] = {};
-
-        bool draw_flag;
 
         unsigned char delay_timer;
         unsigned char sound_timer;
@@ -55,11 +51,20 @@ class chip8 {
 
         void timer_loop();
     public:
-        chip8();
-        void chip8::initialize();
-        void chip8::emulateCycle();
+        void loadProgram(const unsigned char * program, int size);
+        bool draw_flag;
+
+        chip8(SDL_Window * screen);
+
+        void initialize();
+
+        void run();
+        void emulateCycle();
+
+        void updateScreen();
 
 
+    unsigned char memory[4096] = {};
 };
 
 
