@@ -7,21 +7,23 @@
 
 #include <cstdint>
 #include <string>
+#include "includes/globals.h"
 
 struct Memory {
 public:
     unsigned int size;
+    uint16_t memory[MEMORY_SIZE / 2];
+
     /**
      * A constructor
      * Stores values as uint16_t, so double bytes
      * @param memory Initial memory
      * @param size Memory Size in bytes
      */
-    explicit Memory(char * memory, unsigned int size);
+    explicit Memory(const unsigned char * memory, unsigned int size);
 
-    uint16_t getInstruction(unsigned int index);
+    uint16_t getOpcode(unsigned int index);
 private:
-    char * memory;
 };
 
 

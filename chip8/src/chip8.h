@@ -16,7 +16,7 @@ class chip8 {
     private:
         unsigned char gfx[64 * 32]; // Temporary display
         SDL_Window * screen;
-        SDL_Renderer * renderer;
+        SDL_Renderer * renderer; // SDL Renderer to use with window
         unsigned short pc; // Program counter (First 512/0x200 bytes are reserved for Chip8)
         unsigned short opcode; // Current opcode
 
